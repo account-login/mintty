@@ -60,31 +60,11 @@ add(struct buf *b, uchar c)
   b->data[b->len++] = c;
 }
 
-// static void
-// add_block(struct buf *b, const void *block, int size)
-// {
-//   if (b->len + size > b->size) {
-//     assert(size <= 256);
-//     b->size = (b->len * 3 / 2) + 512;
-//     b->data = renewn(b->data, b->size);
-//   }
-//   memcpy(&b->data[b->len], block, size);
-//   b->len += size;
-// }
-
 static int
 get(struct buf *b)
 {
   return b->data[b->len++];
 }
-
-// static void
-// get_block(struct buf *b, void *block, int size)
-// {
-//   // assert(b->len + size <= b->size);
-//   memcpy(block, &b->data[b->len], size);
-//   b->len += size;
-// }
 
 /*
  * Store the number, 7 bits at a time, least significant
@@ -397,27 +377,6 @@ encode_attr(struct buf *b, termline *line)
   writevint(b, rle_cnt);
 }
 
-// static void
-// makeliteral_cc(struct buf *b, termchar *c)
-// {
-//  /*
-//   * For combining characters, I just encode a bunch of ordinary
-//   * chars using makeliteral_chr, and terminate with a \0
-//   * character (which I know won't come up as a combining char itself).
-//   */
-//   termchar z;
-
-//   while (c->cc_next) {
-//     c += c->cc_next;
-//     assert(c->chr != 0);
-//     makeliteral_chr(b, c);
-//     makeliteral_attr(b, c);
-//   }
-
-//   z.chr = 0;
-//   makeliteral_chr(b, &z);
-// }
-
 static void
 encode_cc(struct buf *b, termline *line)
 {
@@ -550,23 +509,6 @@ decode_attr(struct buf *b, termline *line)
   }
 }
 
-// static void
-// readliteral_cc(struct buf *b, termchar *c, termline *line)
-// {
-//   termchar n;
-//   int x = c - line->chars;
-
-//   c->cc_next = 0;
-
-//   while (1) {
-//     readliteral_chr(b, &n, line);
-//     if (!n.chr)
-//       break;
-//     readliteral_attr(b, &n, line);
-//     add_cc(line, x, n.chr, n.attr);
-//   }
-// }
-
 static void
 decode_cc(struct buf *b, termline *line)
 {
@@ -586,140 +528,6 @@ decode_cc(struct buf *b, termline *line)
   }
 }
 
-// static void
-// makerle(struct buf *b, termline *line,
-//         void (*makeliteral) (struct buf *b, termchar *c))
-// {
-//   int hdrpos, hdrsize, prevlen, prevpos, thislen, thispos, prev2;
-
-//   termchar *c = line->chars;
-//   int n = line->cols;
-
-//   //! Note: line->chars is based @ index -1
-//   c--;
-//   n++;
-
-//   hdrpos = b->len;
-//   hdrsize = 0;
-//   add(b, 0);
-//   prevlen = prevpos = 0;
-//   prev2 = false;
-
-//   while (n-- > 0) {
-//     thispos = b->len;
-//     makeliteral(b, c++);
-//     thislen = b->len - thispos;
-//     if (thislen == prevlen &&
-//         !memcmp(b->data + prevpos, b->data + thispos, thislen)) {
-//      /*
-//       * This literal precisely matches the previous one.
-//       * Turn it into a run if it's worthwhile.
-//       *
-//       * With one-byte literals, it costs us two bytes to encode a run, 
-//       * plus another byte to write the header to resume normal output; 
-//       * so a three-element run is neutral, and anything beyond that 
-//       * is unconditionally worthwhile. 
-//       * With two-byte literals or more, even a 2-run is a win.
-//       */
-//       if (thislen > 1 || prev2) {
-//         int runpos, runlen;
-
-//        /*
-//         * It's worth encoding a run. Start at prevpos,
-//         * unless hdrsize == 0 in which case we can back up
-//         * another one and start by overwriting hdrpos.
-//         */
-
-//         hdrsize--;      /* remove the literal at prevpos */
-//         if (prev2) {
-//           assert(hdrsize > 0);
-//           hdrsize--;
-//           prevpos -= prevlen;   /* and possibly another one */
-//         }
-
-//         if (hdrsize == 0) {
-//           assert(prevpos == hdrpos + 1);
-//           runpos = hdrpos;
-//           b->len = prevpos + prevlen;
-//         }
-//         else {
-//           memmove(b->data + prevpos + 1, b->data + prevpos, prevlen);
-//           runpos = prevpos;
-//           b->len = prevpos + prevlen + 1;
-//          /*
-//           * Terminate the previous run of ordinary literals.
-//           */
-//           assert(hdrsize >= 1 && hdrsize <= 128);
-//           b->data[hdrpos] = hdrsize - 1;
-//         }
-
-//         runlen = prev2 ? 3 : 2;
-
-//         while (n > 0 && runlen < 129) {
-//           int tmppos, tmplen;
-//           tmppos = b->len;
-//           makeliteral(b, c);
-//           tmplen = b->len - tmppos;
-//           b->len = tmppos;
-//           if (tmplen != thislen ||
-//               memcmp(b->data + runpos + 1, b->data + tmppos, tmplen)) {
-//             break;      /* run over */
-//           }
-//           n--, c++, runlen++;
-//         }
-
-//         assert(runlen >= 2 && runlen <= 129);
-//         b->data[runpos] = runlen + 0x80 - 2;
-
-//         hdrpos = b->len;
-//         hdrsize = 0;
-//         add(b, 0);
-//        /* And ensure this run doesn't interfere with the next. */
-//         prevlen = prevpos = 0;
-//         prev2 = false;
-
-//         continue;
-//       }
-//       else {
-//        /*
-//         * Just flag that the previous two literals were identical,
-//         * in case we find a third identical one we want to turn into a run.
-//         */
-//         prev2 = true;
-//         prevlen = thislen;
-//         prevpos = thispos;
-//       }
-//     }
-//     else {
-//       prev2 = false;
-//       prevlen = thislen;
-//       prevpos = thispos;
-//     }
-
-//    /*
-//     * This character isn't (yet) part of a run. Add it to hdrsize.
-//     */
-//     hdrsize++;
-//     if (hdrsize == 128) {
-//       b->data[hdrpos] = hdrsize - 1;
-//       hdrpos = b->len;
-//       hdrsize = 0;
-//       add(b, 0);
-//       prevlen = prevpos = 0;
-//       prev2 = false;
-//     }
-//   }
-
-//  /* Clean up. */
-//   if (hdrsize > 0) {
-//     assert(hdrsize <= 128);
-//     b->data[hdrpos] = hdrsize - 1;
-//   }
-//   else {
-//     b->len = hdrpos;
-//   }
-// }
-
 uchar *
 compressline(termline *line)
 {
@@ -738,23 +546,6 @@ compressline(termline *line)
     writevint(b, line->wrappos);
   }
 
-//  /*
-//   * Now we store a sequence of separate run-length encoded
-//   * fragments, each containing exactly as many symbols as there
-//   * are columns in the line.
-//   *
-//   * All of these have a common basic format:
-//   *
-//   *  - a byte 00-7F indicates that X+1 literals follow it
-//   *  - a byte 80-FF indicates that a single literal follows it
-//   *    and expects to be repeated (X-0x80)+2 times.
-//   *
-//   * The format of the `literals' varies between the fragments.
-//   */
-//   makerle(b, line, makeliteral_chr);
-//   makerle(b, line, makeliteral_attr);
-//   makerle(b, line, makeliteral_cc);
-
   int s1 = b->len;
   encode_chr(b, line);
   int s2 = b->len;
@@ -772,42 +563,6 @@ compressline(termline *line)
 #endif
   return renewn(b->data, b->len);
 }
-
-// static void
-// readrle(struct buf *b, termline *line,
-//         void (*readliteral) (struct buf *b, termchar *c, termline *line))
-// {
-//   //! Note: line->chars is based @ index -1
-//   int n = -1;
-
-//   while (n < line->cols) {
-//     int hdr = get(b);
-
-//     if (hdr >= 0x80) {
-//      /* A run. */
-
-//       int pos = b->len, count = hdr + 2 - 0x80;
-//       while (count--) {
-//         assert(n < line->cols);
-//         b->len = pos;
-//         readliteral(b, line->chars + n, line);
-//         n++;
-//       }
-//     }
-//     else {
-//      /* Just a sequence of consecutive literals. */
-
-//       int count = hdr + 1;
-//       while (count--) {
-//         assert(n < line->cols);
-//         readliteral(b, line->chars + n, line);
-//         n++;
-//       }
-//     }
-//   }
-
-//   assert(n == line->cols);
-// }
 
 termline *
 decompressline(uchar *data, int *bytes_used)
@@ -835,15 +590,6 @@ decompressline(uchar *data, int *bytes_used)
   // read in the cc_free.
   line->cc_free = (short) readvint(b);
 
-//  /*
-//   * We must set all the cc pointers in line->chars to 0 right now, 
-//   * so that cc diagnostics that verify the integrity of the whole line 
-//   * will make sense while we're in the middle of building it up.
-//   */
-//   //! Note: line->chars is based @ index -1
-//   for (int i = -1; i < line->cols; i++)
-//     line->chars[i].cc_next = 0;
-
  /*
   * Now read in the line attributes.
   */
@@ -855,13 +601,6 @@ decompressline(uchar *data, int *bytes_used)
   if (line->lattr & LATTR_WRAPPED) {
     line->wrappos = (ushort) readvint(b);
   }
-
-//  /*
-//   * Now we read in each of the RLE streams in turn.
-//   */
-//   readrle(b, line, readliteral_chr);
-//   readrle(b, line, readliteral_attr);
-//   readrle(b, line, readliteral_cc);
 
   decode_chr(b, line);
   decode_attr(b, line);
