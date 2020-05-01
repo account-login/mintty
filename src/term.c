@@ -44,7 +44,8 @@ termchar basic_erase_char =
             /* CATTR_DEFAULT */
     .attr = {.attr = ATTR_DEFAULT | TATTR_CLEAR,
              .truefg = 0, .truebg = 0, .ulcolr = (colour)-1,
-             .link = -1
+             .link = -1,
+             .rle_cnt = 0
             }
    };
 
