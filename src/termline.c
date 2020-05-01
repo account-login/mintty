@@ -87,6 +87,34 @@ get(struct buf *b)
 // }
 
 /*
+ * Store the number, 7 bits at a time, least significant
+ * `digit' first, with the high bit set on all but the last.
+ */
+static void
+writevint(struct buf *b, int n)
+{
+  while (n >= 128) {
+    add(b, (uchar) ((n & 0x7F) | 0x80));
+    n >>= 7;
+  }
+  add(b, (uchar) (n));
+}
+
+static int
+readvint(struct buf *b)
+{
+  int val = 0;
+  int shift = 0;
+  int byte = 0;
+  do {
+    byte = get(b);
+    val |= (byte & 0x7F) << shift;
+    shift += 7;
+  } while (byte & 0x80);
+  return val;
+}
+
+/*
  * Add a combining character to a character cell.
  */
 void
@@ -261,24 +289,20 @@ encode_chr(struct buf *b, termline *line)
     termchar *c = &line->chars[i];
     if (c->chr == ' ') {
       space_cnt++;
-      if (space_cnt == 255) {
-        add(b, ' ');
-        add(b, (uchar) space_cnt);
-        space_cnt = 0;
-      }
-    } else {
-      if (space_cnt > 0) {
-        add(b, ' ');
-        add(b, (uchar) space_cnt);
-        space_cnt = 0;
-      }
-      makeliteral_chr(b, c);
+      continue;
     }
+
+    if (space_cnt > 0) {
+      add(b, ' ');
+      writevint(b, space_cnt);
+      space_cnt = 0;
+    }
+    makeliteral_chr(b, c);
   }
 
   if (space_cnt > 0) {
     add(b, ' ');
-    add(b, (uchar) space_cnt);
+    writevint(b, space_cnt);
   }
 }
 
@@ -364,15 +388,13 @@ encode_attr(struct buf *b, termline *line)
       rle_cnt++;
     } else {
       makeliteral_attr(b, &line->chars[head]);
-      add(b, (uchar) rle_cnt);
-      add(b, (uchar) (rle_cnt >> 8));
+      writevint(b, rle_cnt);
       head = i;
       rle_cnt = 1;
     }
   }
   makeliteral_attr(b, &line->chars[head]);
-  add(b, (uchar) rle_cnt);
-  add(b, (uchar) (rle_cnt >> 8));
+  writevint(b, rle_cnt);
 }
 
 // static void
@@ -405,25 +427,20 @@ encode_cc(struct buf *b, termline *line)
     termchar *c = &line->chars[i];
     if (c->cc_next == 0) {
       zero_cnt++;
-    } else {
-      if (zero_cnt > 0) {
-        add(b, 0);
-        add(b, 0);
-        add(b, (uchar) zero_cnt);
-        add(b, (uchar) (zero_cnt >> 8));
-        zero_cnt = 0;
-      }
-      uint16_t block = c->cc_next;
-      add(b, (uchar) block);
-      add(b, (uchar) (block >> 8));
+      continue;
     }
+
+    if (zero_cnt > 0) {
+      writevint(b, 0);
+      writevint(b, zero_cnt);
+      zero_cnt = 0;
+    }
+    writevint(b, c->cc_next);
   }
 
   if (zero_cnt > 0) {
-    add(b, 0);
-    add(b, 0);
-    add(b, (uchar) zero_cnt);
-    add(b, (uchar) (zero_cnt >> 8));
+    writevint(b, 0);
+    writevint(b, zero_cnt);
   }
 }
 
@@ -454,7 +471,7 @@ decode_chr(struct buf *b, termline *line)
     termchar *c = &line->chars[i];
     readliteral_chr(b, c, line);
     if (c->chr == ' ') {
-      int space_cnt = get(b);
+      int space_cnt = readvint(b);
       for (int j = 1; j < space_cnt; ++j) {
         (c + j)->chr = ' ';
       }
@@ -525,8 +542,7 @@ decode_attr(struct buf *b, termline *line)
   for (int i = -1; i < line->size; ) {
     termchar *c = &line->chars[i];
     readliteral_attr(b, c, line);
-    uint16_t rle_cnt = get(b);
-    rle_cnt |= get(b) << 8;
+    int rle_cnt = readvint(b);
     i += rle_cnt;
     for (int j = 1; j < rle_cnt; ++j) {
       (c + j)->attr = c->attr;
@@ -557,11 +573,9 @@ decode_cc(struct buf *b, termline *line)
   //! Note: line->chars is based @ index -1
   for (int i = -1; i < line->size; ) {
     termchar *c = &line->chars[i];
-    c->cc_next = get(b);
-    c->cc_next |= (short) (get(b) << 8);
+    c->cc_next = readvint(b);
     if (c->cc_next == 0) {
-      uint16_t zero_cnt = get(b);
-      zero_cnt |= (uint16_t) (get(b) << 8);
+      int zero_cnt = readvint(b);
       for (int j = 1; j < zero_cnt; ++j) {
         (c + j)->cc_next = 0;
       }
@@ -706,71 +720,22 @@ decode_cc(struct buf *b, termline *line)
 //   }
 // }
 
-
 uchar *
 compressline(termline *line)
 {
   struct buf buffer = { null, 0, 0 }, *b = &buffer;
 
- /*
-  * First, store the column count, 7 bits at a time, least significant
-  * `digit' first, with the high bit set on all but the last.
-  */
-  {
-    int n = line->cols;
-    while (n >= 128) {
-      add(b, (uchar) ((n & 0x7F) | 0x80));
-      n >>= 7;
-    }
-    add(b, (uchar) (n));
-  }
-
- /*
-  * Next store the line size; same principle.
-  */
-  {
-    int n = line->size;
-    while (n >= 128) {
-      add(b, (uchar) ((n & 0x7F) | 0x80));
-      n >>= 7;
-    }
-    add(b, (uchar) (n));
-  }
-
- /*
-  * Next store the cc_free; same principle.
-  */
-  {
-    int n = line->cc_free;
-    while (n >= 128) {
-      add(b, (uchar) ((n & 0x7F) | 0x80));
-      n >>= 7;
-    }
-    add(b, (uchar) (n));
-  }
-
- /*
-  * Next store the line attributes; same principle.
-  */
-  {
-    int n = line->lattr;
-    while (n >= 128) {
-      add(b, (uchar) ((n & 0x7F) | 0x80));
-      n >>= 7;
-    }
-    add(b, (uchar) (n));
-  }
+  // store the column count, array size, cc_free and line attributes.
+  writevint(b, line->cols);
+  writevint(b, line->size);
+  writevint(b, line->cc_free);
+  writevint(b, line->lattr);
 
  /*
   * Store the wrap position if used.
   */
   if (line->lattr & LATTR_WRAPPED) {
-    int n = line->wrappos;
-    while (n >= 128) {
-      add(b, (uchar) ((n & 0x7F) | 0x80));
-      n >>= 7;
-    }
-    add(b, (uchar) (n));
+    writevint(b, line->wrappos);
   }
 
 //  /*
@@ -847,7 +812,6 @@ compressline(termline *line)
 termline *
 decompressline(uchar *data, int *bytes_used)
 {
-  int ncols, byte, shift;
   struct buf buffer, *b = &buffer;
   termline *line;
 
@@ -855,36 +819,10 @@ decompressline(uchar *data, int *bytes_used)
   b->len = 0;
 
  /*
-  * First read in the column count.
+  * First read in the column count and array size.
   */
-  ncols = shift = 0;
-  do {
-    byte = get(b);
-    ncols |= (byte & 0x7F) << shift;
-    shift += 7;
-  } while (byte & 0x80);
-
- /*
-  * Now read in the column size.
-  */
-  int size = 0;
-  shift = 0;
-  do {
-    byte = get(b);
-    size |= (byte & 0x7F) << shift;
-    shift += 7;
-  } while (byte & 0x80);
-
- /*
-  * Now read in the cc_free.
-  */
-  int cc_free = 0;
-  shift = 0;
-  do {
-    byte = get(b);
-    cc_free |= (byte & 0x7F) << shift;
-    shift += 7;
-  } while (byte & 0x80);
+  int ncols = readvint(b);
+  int size = readvint(b);
 
  /*
   * Now create the output termline.
@@ -894,7 +832,8 @@ decompressline(uchar *data, int *bytes_used)
   line->cols = ncols;
   line->size = size;
   line->temporary = true;
-  line->cc_free = cc_free;
+  // read in the cc_free.
+  line->cc_free = (short) readvint(b);
 
 //  /*
 //   * We must set all the cc pointers in line->chars to 0 right now, 
@@ -908,24 +847,13 @@ decompressline(uchar *data, int *bytes_used)
  /*
   * Now read in the line attributes.
   */
-  line->lattr = shift = 0;
-  do {
-    byte = get(b);
-    line->lattr |= (byte & 0x7F) << shift;
-    shift += 7;
-  } while (byte & 0x80);
+  line->lattr = (ushort) readvint(b);
 
  /*
   * Read the wrap position if used.
   */
   if (line->lattr & LATTR_WRAPPED) {
-    ncols = shift = 0;
-    do {
-      byte = get(b);
-      ncols |= (byte & 0x7F) << shift;
-      shift += 7;
-    } while (byte & 0x80);
-    line->wrappos = ncols;
+    line->wrappos = (ushort) readvint(b);
   }
 
 //  /*
