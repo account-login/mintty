@@ -60,17 +60,17 @@ add(struct buf *b, uchar c)
   b->data[b->len++] = c;
 }
 
-static void
-add_block(struct buf *b, const void *block, int size)
-{
-  if (b->len + size > b->size) {
-    assert(size <= 256);
-    b->size = (b->len * 3 / 2) + 512;
-    b->data = renewn(b->data, b->size);
-  }
-  memcpy(&b->data[b->len], block, size);
-  b->len += size;
-}
+// static void
+// add_block(struct buf *b, const void *block, int size)
+// {
+//   if (b->len + size > b->size) {
+//     assert(size <= 256);
+//     b->size = (b->len * 3 / 2) + 512;
+//     b->data = renewn(b->data, b->size);
+//   }
+//   memcpy(&b->data[b->len], block, size);
+//   b->len += size;
+// }
 
 static int
 get(struct buf *b)
@@ -78,13 +78,13 @@ get(struct buf *b)
   return b->data[b->len++];
 }
 
-static void
-get_block(struct buf *b, void *block, int size)
-{
-  // assert(b->len + size <= b->size);
-  memcpy(block, &b->data[b->len], size);
-  b->len += size;
-}
+// static void
+// get_block(struct buf *b, void *block, int size)
+// {
+//   // assert(b->len + size <= b->size);
+//   memcpy(block, &b->data[b->len], size);
+//   b->len += size;
+// }
 
 /*
  * Add a combining character to a character cell.
@@ -282,65 +282,65 @@ encode_chr(struct buf *b, termline *line)
   }
 }
 
-// static void
-// makeliteral_attr(struct buf *b, termchar *c)
-// {
-//  /*
-//   * My encoding for attributes is 16-bit-granular and assumes
-//   * that the top bit of the word is never required. I either
-//   * store a two-byte value with the top bit clear (indicating
-//   * just that value), or a four-byte value with the top bit set
-//   * (indicating the same value with its top bit clear).
-//   *
-//   * However, first I permute the bits of the attribute value, so
-//   * that the eight bits of colour (four in each of fg and bg)
-//   * which are never non-zero unless xterm 256-colour mode is in
-//   * use are placed higher up the word than everything else. This
-//   * ensures that attribute values remain 16-bit _unless_ the
-//   * user uses extended colour.
-//   */
-//   cattrflags attr = c->attr.attr & ~DATTR_MASK;
-//   int link = c->attr.link;
-//   int imgi = c->attr.imgi;
-//   colour truefg = c->attr.truefg;
-//   colour truebg = c->attr.truebg;
-//   colour ulcolr = c->attr.ulcolr;
+static void
+makeliteral_attr(struct buf *b, termchar *c)
+{
+ /*
+  * My encoding for attributes is 16-bit-granular and assumes
+  * that the top bit of the word is never required. I either
+  * store a two-byte value with the top bit clear (indicating
+  * just that value), or a four-byte value with the top bit set
+  * (indicating the same value with its top bit clear).
+  *
+  * However, first I permute the bits of the attribute value, so
+  * that the eight bits of colour (four in each of fg and bg)
+  * which are never non-zero unless xterm 256-colour mode is in
+  * use are placed higher up the word than everything else. This
+  * ensures that attribute values remain 16-bit _unless_ the
+  * user uses extended colour.
+  */
+  cattrflags attr = c->attr.attr & ~DATTR_MASK;
+  int link = c->attr.link;
+  int imgi = c->attr.imgi;
+  colour truefg = c->attr.truefg;
+  colour truebg = c->attr.truebg;
+  colour ulcolr = c->attr.ulcolr;
 
-//   if (attr < 0x800000 && !truefg && !truebg
-//       && link == -1 && !imgi && ulcolr == (colour)-1) {
-//     add(b, (uchar) ((attr >> 16) & 0xFF));
-//     add(b, (uchar) ((attr >> 8) & 0xFF));
-//     add(b, (uchar) (attr & 0xFF));
-//   }
-//   else {
-//     add(b, (uchar) ((attr >> 56) & 0xFF) | 0x80);
-//     add(b, (uchar) ((attr >> 48) & 0xFF));
-//     add(b, (uchar) ((attr >> 40) & 0xFF));
-//     add(b, (uchar) ((attr >> 32) & 0xFF));
-//     add(b, (uchar) ((attr >> 24) & 0xFF));
-//     add(b, (uchar) ((attr >> 16) & 0xFF));
-//     add(b, (uchar) ((attr >> 8) & 0xFF));
-//     add(b, (uchar) (attr & 0xFF));
-//     add(b, (uchar) ((link >> 24) & 0xFF));
-//     add(b, (uchar) ((link >> 16) & 0xFF));
-//     add(b, (uchar) ((link >> 8) & 0xFF));
-//     add(b, (uchar) (link & 0xFF));
-//     add(b, (uchar) ((imgi >> 24) & 0xFF));
-//     add(b, (uchar) ((imgi >> 16) & 0xFF));
-//     add(b, (uchar) ((imgi >> 8) & 0xFF));
-//     add(b, (uchar) (imgi & 0xFF));
+  if (attr < 0x800000 && !truefg && !truebg
+      && link == -1 && !imgi && ulcolr == (colour)-1) {
+    add(b, (uchar) ((attr >> 16) & 0xFF));
+    add(b, (uchar) ((attr >> 8) & 0xFF));
+    add(b, (uchar) (attr & 0xFF));
+  }
+  else {
+    add(b, (uchar) ((attr >> 56) & 0xFF) | 0x80);
+    add(b, (uchar) ((attr >> 48) & 0xFF));
+    add(b, (uchar) ((attr >> 40) & 0xFF));
+    add(b, (uchar) ((attr >> 32) & 0xFF));
+    add(b, (uchar) ((attr >> 24) & 0xFF));
+    add(b, (uchar) ((attr >> 16) & 0xFF));
+    add(b, (uchar) ((attr >> 8) & 0xFF));
+    add(b, (uchar) (attr & 0xFF));
+    add(b, (uchar) ((link >> 24) & 0xFF));
+    add(b, (uchar) ((link >> 16) & 0xFF));
+    add(b, (uchar) ((link >> 8) & 0xFF));
+    add(b, (uchar) (link & 0xFF));
+    add(b, (uchar) ((imgi >> 24) & 0xFF));
+    add(b, (uchar) ((imgi >> 16) & 0xFF));
+    add(b, (uchar) ((imgi >> 8) & 0xFF));
+    add(b, (uchar) (imgi & 0xFF));
 
-//     add(b, (uchar) ((truefg >> 16) & 0xFF));
-//     add(b, (uchar) ((truefg >> 8) & 0xFF));
-//     add(b, (uchar) (truefg & 0xFF));
-//     add(b, (uchar) ((truebg >> 16) & 0xFF));
-//     add(b, (uchar) ((truebg >> 8) & 0xFF));
-//     add(b, (uchar) (truebg & 0xFF));
-//     add(b, (uchar) ((ulcolr >> 16) & 0xFF));
-//     add(b, (uchar) ((ulcolr >> 8) & 0xFF));
-//     add(b, (uchar) (ulcolr & 0xFF));
-//   }
-// }
+    add(b, (uchar) ((truefg >> 16) & 0xFF));
+    add(b, (uchar) ((truefg >> 8) & 0xFF));
+    add(b, (uchar) (truefg & 0xFF));
+    add(b, (uchar) ((truebg >> 16) & 0xFF));
+    add(b, (uchar) ((truebg >> 8) & 0xFF));
+    add(b, (uchar) (truebg & 0xFF));
+    add(b, (uchar) ((ulcolr >> 16) & 0xFF));
+    add(b, (uchar) ((ulcolr >> 8) & 0xFF));
+    add(b, (uchar) (ulcolr & 0xFF));
+  }
+}
 
 static bool cattr_eq(const cattr *a, const cattr *b)
 {
@@ -356,19 +356,23 @@ static void
 encode_attr(struct buf *b, termline *line)
 {
   int head = -1;
+  int rle_cnt = 0;
   //! Note: line->chars is based @ index -1
   for (int i = -1; i < line->size; ++i) {
     termchar *c = &line->chars[i];
     if (cattr_eq(&c->attr, &line->chars[head].attr)) {
-      c->attr.rle_cnt = 0;
-      line->chars[head].attr.rle_cnt++;
+      rle_cnt++;
     } else {
-      add_block(b, (const void *) &line->chars[head].attr, sizeof(cattr));
+      makeliteral_attr(b, &line->chars[head]);
+      add(b, (uchar) rle_cnt);
+      add(b, (uchar) (rle_cnt >> 8));
       head = i;
-      c->attr.rle_cnt = 1;
+      rle_cnt = 1;
     }
   }
-  add_block(b, (const void *) &line->chars[head].attr, sizeof(cattr));
+  makeliteral_attr(b, &line->chars[head]);
+  add(b, (uchar) rle_cnt);
+  add(b, (uchar) (rle_cnt >> 8));
 }
 
 // static void
@@ -461,58 +465,58 @@ decode_chr(struct buf *b, termline *line)
   }
 }
 
-// static void
-// readliteral_attr(struct buf *b, termchar *c, termline *unused(line))
-// {
-//   cattrflags attr;
-//   int link = -1;
-//   int imgi = 0;
-//   uint fg = 0;
-//   uint bg = 0;
-//   colour ul = (colour)-1;
+static void
+readliteral_attr(struct buf *b, termchar *c, termline *unused(line))
+{
+  cattrflags attr;
+  int link = -1;
+  int imgi = 0;
+  uint fg = 0;
+  uint bg = 0;
+  colour ul = (colour)-1;
 
-//   attr = get(b) << 16;
-//   attr |= get(b) << 8;
-//   attr |= get(b);
-//   if (attr >= 0x800000) {
-//     attr &= ~0x800000;
-//     attr <<= 8;
-//     attr |= get(b);
-//     attr <<= 8;
-//     attr |= get(b);
-//     attr <<= 8;
-//     attr |= get(b);
-//     attr <<= 8;
-//     attr |= get(b);
-//     attr <<= 8;
-//     attr |= get(b);
-//     link = get(b) << 24;
-//     link |= get(b) << 16;
-//     link |= get(b) << 8;
-//     link |= get(b);
-//     imgi = get(b) << 24;
-//     imgi |= get(b) << 16;
-//     imgi |= get(b) << 8;
-//     imgi |= get(b);
+  attr = get(b) << 16;
+  attr |= get(b) << 8;
+  attr |= get(b);
+  if (attr >= 0x800000) {
+    attr &= ~0x800000;
+    attr <<= 8;
+    attr |= get(b);
+    attr <<= 8;
+    attr |= get(b);
+    attr <<= 8;
+    attr |= get(b);
+    attr <<= 8;
+    attr |= get(b);
+    attr <<= 8;
+    attr |= get(b);
+    link = get(b) << 24;
+    link |= get(b) << 16;
+    link |= get(b) << 8;
+    link |= get(b);
+    imgi = get(b) << 24;
+    imgi |= get(b) << 16;
+    imgi |= get(b) << 8;
+    imgi |= get(b);
 
-//     fg = get(b) << 16;
-//     fg |= get(b) << 8;
-//     fg |= get(b);
-//     bg = get(b) << 16;
-//     bg |= get(b) << 8;
-//     bg |= get(b);
-//     ul = get(b) << 16;
-//     ul |= get(b) << 8;
-//     ul |= get(b);
-//   }
+    fg = get(b) << 16;
+    fg |= get(b) << 8;
+    fg |= get(b);
+    bg = get(b) << 16;
+    bg |= get(b) << 8;
+    bg |= get(b);
+    ul = get(b) << 16;
+    ul |= get(b) << 8;
+    ul |= get(b);
+  }
 
-//   c->attr.attr = attr;
-//   c->attr.link = link;
-//   c->attr.imgi = imgi;
-//   c->attr.truefg = fg;
-//   c->attr.truebg = bg;
-//   c->attr.ulcolr = ul;
-// }
+  c->attr.attr = attr;
+  c->attr.link = link;
+  c->attr.imgi = imgi;
+  c->attr.truefg = fg;
+  c->attr.truebg = bg;
+  c->attr.ulcolr = ul;
+}
 
 static void
 decode_attr(struct buf *b, termline *line)
@@ -520,9 +524,9 @@ decode_attr(struct buf *b, termline *line)
   //! Note: line->chars is based @ index -1
   for (int i = -1; i < line->size; ) {
     termchar *c = &line->chars[i];
-    get_block(b, &c->attr, sizeof(cattr));
-    int rle_cnt = c->attr.rle_cnt;
-    c->attr.rle_cnt = 0;
+    readliteral_attr(b, c, line);
+    uint16_t rle_cnt = get(b);
+    rle_cnt |= get(b) << 8;
     i += rle_cnt;
     for (int j = 1; j < rle_cnt; ++j) {
       (c + j)->attr = c->attr;

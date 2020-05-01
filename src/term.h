@@ -213,8 +213,6 @@ typedef struct {
   colour ulcolr;
   int link;
   int imgi;
-  // Only used by compressline/decompressline
-  uint32_t rle_cnt;
 } cattr;
 
 extern const cattr CATTR_DEFAULT;
