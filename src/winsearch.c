@@ -12,6 +12,7 @@ static HWND search_wnd;
 static HWND search_close_wnd;
 static HWND search_prev_wnd;
 static HWND search_next_wnd;
+static HWND search_regex_wnd;
 static HWND search_edit_wnd;
 static WNDPROC default_edit_proc;
 static HFONT search_font;
@@ -117,6 +118,13 @@ edit_proc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
           }
           win_schedule_update();
           return 0;
+        when 'R':
+          if (GetKeyState(VK_CONTROL) < 0) {
+            // ctrl+R, simulate regex button click
+            SendMessage(search_regex_wnd, BM_CLICK, 0, 0);
+            SetFocus(search_edit_wnd);
+            return 0;
+          }
       }
     when WM_CHAR:
       switch (mesg.wParam) {
@@ -154,6 +162,10 @@ search_proc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
             term_clear_search();
             win_hide_search();
             win_schedule_update();
+          }
+          if (lp == (long)search_regex_wnd) {
+            term.results.regex = !term.results.regex;
+            term_schedule_search_update();
           }
           win_schedule_update();
           return 0;
@@ -226,10 +238,12 @@ win_toggle_search(bool show, bool focus)
   int pos_close = -1;
   int pos_prev = -1;
   int pos_next = -1;
+  int pos_regex = -1;
   int pos_edit = -1;
   int barpos = margin;
   wchar * prev_but = _W("◀");
   wchar * next_but = _W("▶");
+  wchar * regex_but = _W("R");
   wchar * close_but = _W("X");
   while (search_bar && * search_bar) {
     switch (* search_bar) {
@@ -239,6 +253,8 @@ win_toggle_search(bool show, bool focus)
         place_field(& barpos, button_width, & pos_prev);
       when '>':
         place_field(& barpos, button_width, & pos_next);
+      when 'r' or 'R':
+        place_field(& barpos, button_width, & pos_regex);
       when 's' or 'S':
         place_field(& barpos, edit_width, & pos_edit);
       when 0x25B2 ... 0x25B5 or 0x25C0 ... 0x25C5:
@@ -284,6 +300,7 @@ win_toggle_search(bool show, bool focus)
   place_field(& barpos, button_width, & pos_close);
   place_field(& barpos, button_width, & pos_prev);
   place_field(& barpos, button_width, & pos_next);
+  place_field(& barpos, button_width, & pos_regex);
   place_field(& barpos, edit_width, & pos_edit);
 
   // Set up our global variables.
@@ -319,6 +336,10 @@ win_toggle_search(bool show, bool focus)
     search_next_wnd = CreateWindowExW(0, W("BUTTON"), next_but, WS_CHILD | WS_VISIBLE,
                                      pos_next, margin, button_width, ctrl_height,
                                      search_wnd, NULL, inst, NULL);
+    //__ label of search bar regex button; not actually "localization"
+    search_regex_wnd = CreateWindowExW(0, W("BUTTON"), regex_but, WS_CHILD | WS_VISIBLE | BS_AUTOCHECKBOX | BS_PUSHLIKE,
+                                     pos_regex, margin, button_width, ctrl_height,
+                                     search_wnd, NULL, inst, NULL);
     search_edit_wnd = CreateWindowExA(WS_EX_CLIENTEDGE, "EDIT", "", WS_CHILD | WS_VISIBLE | WS_TABSTOP | ES_AUTOHSCROLL,
                                      0, 0, 0, 0,
                                      search_wnd, NULL, inst, NULL);
@@ -326,6 +347,7 @@ win_toggle_search(bool show, bool focus)
 #ifdef darken_searchbar
     win_dark_mode(search_prev_wnd);
     win_dark_mode(search_next_wnd);
+    win_dark_mode(search_regex_wnd);
     win_dark_mode(search_close_wnd);
     // these two do not darken anything
     //win_dark_mode(search_wnd);

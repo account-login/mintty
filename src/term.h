@@ -341,6 +341,8 @@ typedef struct {
   wchar * query;
   xchar * xquery;
   int xquery_length;
+  // Is regex pattern?
+  bool regex;
   // The capacity and length of results.
   int capacity;
   int length;
@@ -674,5 +676,6 @@ extern void term_clear_search(void);
 extern void term_search_expand(int idx);
 extern result term_search_prev(void);
 extern result term_search_next(void);
+extern void term_search_results_add(result abspos);
 
 #endif
