@@ -10,7 +10,6 @@
 #define PCRE_NOTBOL             0x00000080  /*    E D J */
 #define PCRE_NOTEOL             0x00000100  /*    E D J */
 #define PCRE_NOTEMPTY           0x00000400  /*    E D J */
-#define PCRE_NO_AUTO_CAPTURE    0x00001000  /* C1       */
 
 typedef struct pcre pcre;
 typedef struct pcre_extra pcre_extra;
@@ -34,7 +33,7 @@ static struct {
 static void *
 pcre1_reg_new(const char *pattern)
 {
-  int options = PCRE_CASELESS | PCRE_UTF8 | PCRE_NO_AUTO_CAPTURE;
+  int options = PCRE_CASELESS | PCRE_UTF8;
   const char *error = "";
   int erroroffset = 0;
   pcre *prog = pcre1_api.pcre_compile(pattern, options, &error, &erroroffset, NULL);
@@ -46,7 +45,10 @@ pcre1_reg_exec(void *prog, const char *string, int *so, int *eo)
 {
   int ovector[3] = {};
   int options = PCRE_NOTBOL | PCRE_NOTEOL | PCRE_NOTEMPTY;
-  int rv = pcre1_api.pcre_exec((const pcre *)prog, NULL, string, *eo, *so, options, ovector, sizeof(ovector));
+  int rv = pcre1_api.pcre_exec(
+    (const pcre *)prog, NULL, string, *eo, *so, options,
+    ovector, sizeof(ovector) / sizeof(int)
+  );
   if (rv >= 0) {
     *so = ovector[0];
     *eo = ovector[1];
