@@ -1,5 +1,6 @@
 #include "term.h"
 #include "charset.h"
+#include "regsearch.h"
 
 #include <sys/types.h>
 #include <regex.h>
@@ -77,6 +78,50 @@ extract_utf8(int begin, int end, char **pdata, int **off2idx, int *psize)
   }
 }
 
+static void *
+posix_reg_new(const char *pattern)
+{
+  regex_t *prog = malloc(sizeof(regex_t));
+  int err = regcomp(prog, pattern, REG_EXTENDED | REG_ICASE);
+  if (err) {
+    free(prog);
+    prog = NULL;
+  }
+  return prog;
+}
+
+static int
+posix_reg_exec(void *prog, const char *string, int *so, int *eo) {
+  string += *so;
+  regmatch_t match;
+  int eflag = REG_NOTBOL | REG_NOTEOL;    // ^ and $ does not make sense
+#ifdef REG_STARTEND
+    eflag |= REG_STARTEND;
+    match.rm_so = 0;
+    match.rm_eo = *eo - *so;
+#endif
+  int err = regexec((const regex_t *)prog, string, 1, &match, eflag);
+  if (!err) {
+    *so += match.rm_so;
+    *eo = *so + match.rm_eo - match.rm_so;
+  }
+  return err;
+}
+
+static void
+posix_reg_free(void *prog)
+{
+  regfree((regex_t *)prog);
+  free(prog);
+}
+
+static regex_api_t reg_api = {
+  .inited = 0,
+  .reg_new = &posix_reg_new,
+  .reg_exec = &posix_reg_exec,
+  .reg_free = &posix_reg_free,
+};
+
 void
 term_search_regex(int begin, int end)
 {
@@ -84,12 +129,17 @@ term_search_regex(int begin, int end)
     return;
   }
 
+  // init regex api
+  if (!reg_api.inited) {
+    (void) regex_load_pcre1(&reg_api);
+    reg_api.inited = 1;
+  }
+
   // compile regex
-  regex_t reg;
   char *pattern = cs__wcstoutf(term.results.query);
-  int reg_err = regcomp(&reg, pattern, REG_EXTENDED | REG_ICASE);
+  void *reg = reg_api.reg_new(pattern);
   free(pattern);
-  if (reg_err) {
+  if (!reg) {
     // bad regex
     return;
   }
@@ -102,30 +152,22 @@ term_search_regex(int begin, int end)
 
   // exec regex
   for (int start = 0; start < size; ) {
-    regmatch_t match;
-    int eflag = REG_NOTBOL | REG_NOTEOL;    // ^ and $ does not make sense
-#ifdef REG_STARTEND
-    eflag |= REG_STARTEND;
-    match.rm_so = 0;
-    match.rm_eo = size - start;
-#endif
-    if (0 != regexec(&reg, &data[start], 1, &match, eflag)) {
-      // not matched
+    int so = start;
+    int eo = size;
+    if (0 != reg_api.reg_exec(reg, data, &so, &eo)) {
       break;
     }
-    assert(match.rm_so >= 0 && match.rm_eo >= match.rm_so);
+    assert(start <= so && so <= eo);
 
     // Append result
-    int idx_begin = off2idx[start + match.rm_so];
-    int idx_end = off2idx[start + match.rm_eo];     // off by one is ok
     result run = {
-      .idx = idx_begin,
-      .len = idx_end - idx_begin,
+      .idx = off2idx[so],
+      .len = off2idx[eo] - off2idx[so],
     };
     assert(begin <= run.idx && (run.idx + run.len) <= end);
     if (run.len > 0) {
       term_search_results_add(run);
-      start += match.rm_eo;
+      start = eo;
     } else {
       // zero length match?
       start += 1;
@@ -135,5 +177,5 @@ term_search_regex(int begin, int end)
   // clean up
   free(off2idx);
   free(data);
-  regfree(&reg);
+  reg_api.reg_free(reg);
 }
