@@ -630,6 +630,10 @@ term_update_search(void)
 // return search results contained by [begin, end)
 static void
 do_search(int begin, int end) {
+  if (term.results.xquery_length == 0) {
+    return;
+  }
+
   if (term.results.regex) {
     void term_search_regex(int, int);
     return term_search_regex(begin, end);
