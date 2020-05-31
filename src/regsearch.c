@@ -96,9 +96,9 @@ posix_reg_exec(void *prog, const char *string, int *so, int *eo) {
   regmatch_t match;
   int eflag = REG_NOTBOL | REG_NOTEOL;    // ^ and $ does not make sense
 #ifdef REG_STARTEND
-    eflag |= REG_STARTEND;
-    match.rm_so = 0;
-    match.rm_eo = *eo - *so;
+  eflag |= REG_STARTEND;
+  match.rm_so = 0;
+  match.rm_eo = *eo - *so;
 #endif
   int err = regexec((const regex_t *)prog, string, 1, &match, eflag);
   if (!err) {

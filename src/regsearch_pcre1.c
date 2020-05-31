@@ -49,12 +49,13 @@ pcre1_reg_exec(void *prog, const char *string, int *so, int *eo)
     (const pcre *)prog, NULL, string, *eo, *so, options,
     ovector, sizeof(ovector) / sizeof(int)
   );
-  if (rv >= 0) {
-    *so = ovector[0];
-    *eo = ovector[1];
-    return 0;
+  if (rv < 0) {
+    return rv;
   }
-  return rv;
+
+  *so = ovector[0];
+  *eo = ovector[1];
+  return 0;
 }
 
 static void
