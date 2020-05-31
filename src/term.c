@@ -532,8 +532,8 @@ in_results(pos scrpos)
   return match;
 }
 
-static void
-results_add(result abspos)
+void
+term_search_results_add(result abspos)
 {
   assert(term.results.capacity > 0);
   if (term.results.length == term.results.capacity) {
@@ -680,6 +680,10 @@ static void
 do_search(int begin, int end)
 {
   //printf("do_search %d %d\n", begin, end);
+  if (term.results.regex) {
+    void term_search_regex(int, int);
+    return term_search_regex(begin, end);
+  }
   if (term.results.xquery_length == 0) {
     return;
   }
@@ -747,7 +751,7 @@ do_search(int begin, int end)
       };
       assert(begin <= run.idx && (run.idx + run.len) <= end);
       // Append result
-      results_add(run);
+      term_search_results_add(run);
       npos = 0;
       anpos = 0;
     }
@@ -785,6 +789,9 @@ term_search_expand(int idx)
   // [range_1_begin, range_2_end) is the search region that covers [idx - look_around, idx + look_around)
   int look_around = term.cols * term.rows;    // chosen arbitrarily
   int pad = term.results.xquery_length * 2;   // the doubling is for UCSWIDE
+  if (term.results.regex) {
+    pad = imax(pad, term.cols);   // increase padding for regex search
+  }
   int range_1_begin = imax(idx - look_around - pad, 0);
   int range_2_end = imin(idx + look_around + pad, max_idx);
 
