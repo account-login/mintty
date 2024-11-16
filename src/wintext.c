@@ -2684,10 +2684,11 @@ apply_attr_colour(cattr a, attr_colour_mode mode)
 
   // fix text contrast
   if (cfg.enhance_contrast && fg != bg) {
-    double contrast = apca_contrast(fg, bg);
-    colour *dark = contrast < 0 ? &bg : &fg;
-    colour *light = contrast < 0 ? &fg : &bg;
+    double Yfg = luminance(fg), Ybg = luminance(bg);
+    colour *dark = Ybg < Yfg ? &bg : &fg;
+    colour *light = Ybg < Yfg ? &fg : &bg;
 
+    double contrast = luminance_diff(Yfg, Ybg) * 100.0;
     for (int cnt = 0; cnt < 5 && fabs(contrast) < (cnt <= 1 ? 60 : 30); cnt++) {
       if (cnt <= 1) {
         *dark = darken(*dark);
