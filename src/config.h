@@ -64,6 +64,7 @@ typedef struct {
   bool opaque_when_focused;
   char cursor_type;
   bool cursor_blinks;
+  bool enhance_contrast;
   // Text
   font_spec font;
   font_spec fontfams[11];

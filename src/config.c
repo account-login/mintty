@@ -57,6 +57,7 @@ const config default_cfg = {
   .opaque_when_focused = false,
   .cursor_type = CUR_LINE,
   .cursor_blinks = true,
+  .enhance_contrast = false,
   // Text
   .font = {.name = W("Lucida Console"), .size = 9, .weight = 400, .isbold = false},
   .fontfams[1] = {.name = W(""), .weight = 400, .isbold = false},
@@ -285,6 +286,7 @@ options[] = {
   {"OpaqueWhenFocused", OPT_BOOL, offcfg(opaque_when_focused)},
   {"CursorType", OPT_CURSOR, offcfg(cursor_type)},
   {"CursorBlinks", OPT_BOOL, offcfg(cursor_blinks)},
+  {"EnhanceContrast", OPT_BOOL, offcfg(enhance_contrast)},
 
   // Text
   {"Font", OPT_WSTRING, offcfg(font.name)},
