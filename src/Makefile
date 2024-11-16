@@ -125,7 +125,7 @@ ifdef DEBUG
 #  CPPFLAGS += -Wno-trampolines
   CFLAGS += -g -Wno-error
 else ifdef DEBUG_OPT
-  CFLAGS += -fno-omit-frame-pointer -O2 -g
+  CFLAGS += -fno-omit-frame-pointer -O2 -g3 -DDEBUG
 else
   CPPFLAGS += -DNDEBUG
   CFLAGS += -fomit-frame-pointer -O2

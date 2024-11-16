@@ -2910,6 +2910,93 @@ rtf_bold_decolour(cattrflags attr, colour_i * pfgi, colour_i * pbgi)
   return (attr & ATTR_BOLD) && bold_thickens;
 }
 
+// https://raw.githubusercontent.com/Myndex/apca-w3/master/images/APCAw3_0.1.17_APCA0.0.98G.svg
+static double luminance(colour c) {
+  double Y
+    = pow(red(c) / 255.0, 2.4) * 0.2126729
+    + pow(green(c) / 255.0, 2.4) * 0.7151522
+    + pow(blue(c) / 255.0, 2.4) * 0.0721750;
+  if (Y < 0.022) {
+    Y += pow(0.022 - Y, 1.414);
+  }
+  return Y;
+}
+
+static double luminance_diff(double fg, double bg) {
+  if (fabs(fg - bg) < 0.0005) {
+    return 0;
+  }
+  double S = bg > fg
+    ? pow(bg, 0.56) - pow(fg, 0.57)
+    : pow(bg, 0.65) - pow(fg, 0.62);
+  S *= 1.14;
+  if (fabs(S) < 0.1) {
+    return 0;
+  }
+  S += S > 0 ? -0.027 : +0.027;
+  return S;  // bg - fg
+}
+
+static double apca_contrast(colour fg, colour bg) {
+  return luminance_diff(luminance(fg), luminance(bg)) * 100.0;
+}
+
+static colour lighten(colour c, int amount) {
+  int r = red(c), g = green(c), b = blue(c);
+  int hi = max(r, max(g, b));
+  int lo = min(r, min(g, b));
+  int md = min(max(g, b), min(max(r, b), max(r, g)));
+
+  int delta_hi = min(255 - hi, amount);
+  int delta_lo = hi > lo ? min(255 - lo, amount - delta_hi) : 0;
+  int delta_md = (hi > md && md > lo) ? (delta_hi * (md - lo) + delta_lo * (hi - md)) / (hi - lo) : 0;
+
+  r += (r == hi) * delta_hi + (r == md) * delta_md + (r == lo) * delta_lo;
+  g += (g == hi) * delta_hi + (g == md) * delta_md + (g == lo) * delta_lo;
+  b += (b == hi) * delta_hi + (b == md) * delta_md + (b == lo) * delta_lo;
+  assert(0 <= r && r <= 255 && 0 <= g && g <= 255 && 0 <= b && b <= 255);
+  return make_colour(r, g, b);
+}
+
+// static void test_lighten() {
+//   assert(lighten(make_colour(0, 0, 0), 10) == make_colour(10, 10, 10));
+//   assert(lighten(make_colour(250, 250, 250), 10) == make_colour(255, 255, 255));
+//   assert(lighten(make_colour(250, 125, 0), 10) == make_colour(255, 130, 5));
+//   assert(lighten(make_colour(250, 210, 170), 10) == make_colour(255, 215, 175));
+//   assert(lighten(make_colour(250, 210, 10), 10) == make_colour(255, 215, 15));
+//   assert(lighten(make_colour(200, 40, 10), 10) == make_colour(210, 41, 10));
+//   assert(lighten(make_colour(255, 40, 10), 10) == make_colour(255, 48, 20));
+//   assert(lighten(make_colour(255, 40, 10), 50) == make_colour(255, 83, 60));
+// }
+
+static colour darken(colour c) {
+  int r = red(c), g = green(c), b = blue(c);
+  int hi = max(r, max(g, b));
+  int lo = min(r, min(g, b));
+  int md = min(max(g, b), min(max(r, b), max(r, g)));
+
+  int amount = hi / 2;
+  int delta_base = min(lo, amount);
+  int delta_hi = amount - delta_base;
+  int delta_md = (hi > md && md > lo) ? delta_hi * (md - lo) / (hi - lo) : 0;
+
+  r -= delta_base + (r == hi) * delta_hi + (r == md) * delta_md;
+  g -= delta_base + (g == hi) * delta_hi + (g == md) * delta_md;
+  b -= delta_base + (b == hi) * delta_hi + (b == md) * delta_md;
+  assert(0 <= r && r <= 255 && 0 <= g && g <= 255 && 0 <= b && b <= 255);
+  return make_colour(r, g, b);
+}
+
+// static void test_darken() {
+//   assert(darken(make_colour(0, 0, 0)) == make_colour(0, 0, 0));
+//   assert(darken(make_colour(10, 10, 10)) == make_colour(5, 5, 5));
+//   assert(darken(make_colour(10, 10, 0)) == make_colour(5, 5, 0));
+//   assert(darken(make_colour(10, 5, 0)) == make_colour(5, 3, 0));
+//   assert(darken(make_colour(100, 50, 20)) == make_colour(50, 19, 0));
+//   assert(darken(make_colour(100, 50, 70)) == make_colour(50, 0, 20));
+//   assert(darken(make_colour(100, 51, 70)) == make_colour(50, 1, 20));
+// }
+
 // Applies attributes to the fg/bg colours and returns the new cattr.
 //
 // "mode" maps to arbitrary sets of "things to do". Mostly these are just
@@ -2983,6 +3070,22 @@ apply_attr_colour(cattr a, attr_colour_mode mode)
 
   colour fg = fgi >= TRUE_COLOUR ? a.truefg : win_get_colour(fgi);
   colour bg = bgi >= TRUE_COLOUR ? a.truebg : win_get_colour(bgi);
+
+  // fix text contrast
+  if (cfg.enhance_contrast && fg != bg) {
+    double contrast = apca_contrast(fg, bg);
+    colour *dark = contrast < 0 ? &bg : &fg;
+    colour *light = contrast < 0 ? &fg : &bg;
+
+    for (int cnt = 0; cnt < 5 && fabs(contrast) < (cnt <= 1 ? 60 : 30); cnt++) {
+      if (cnt <= 1) {
+        *dark = darken(*dark);
+      } else {
+        *light = lighten(*light, 40);
+      }
+      contrast = apca_contrast(fg, bg);
+    }
+  }
 
   if (do_dim && (a.attr & ATTR_DIM)) {
     // we dim by blending fg 50-50 with the default terminal bg
