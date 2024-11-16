@@ -75,6 +75,7 @@ typedef struct {
   char font_render;
   bool bold_as_font;
   bool bold_as_colour;
+  bool bold_as_regular;
   bool allow_blinking;
   string locale;
   string charset;

@@ -2919,6 +2919,9 @@ win_text(int tx, int ty, wchar *text, int len, cattr attr, cattr *textattr, usho
     do_special_underlay = true;
     attr.attr &= ~ATTR_BOLD;
   }
+  if (cfg.bold_as_regular) {
+    attr.attr &= ~ATTR_BOLD;
+  }
   if (ff->bold_mode == BOLD_FONT && (attr.attr & ATTR_BOLD))
     nfont |= FONT_BOLD;
   if (ff->und_mode == UND_FONT && (attr.attr & UNDER_MASK) == ATTR_UNDER
