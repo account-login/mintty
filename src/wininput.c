@@ -2630,6 +2630,12 @@ C	M	+C	+A	"	"
     //printf("-- is_lctrl %d is_ralt %d is_altgr %d\n", is_lctrl, is_ralt, is_altgr);
   }
 
+  if (cfg.no_altgr) {
+    // this turns ralt into lalt -- no more altgr emulations.
+    kbd[VK_LMENU] = (kbd[VK_LMENU] | kbd[VK_RMENU]) & 0x80;
+    kbd[VK_RMENU] = 0;
+  }
+
   bool numlock = kbd[VK_NUMLOCK] & 1;
   bool shift = is_key_down(VK_SHIFT);
   bool lalt = is_key_down(VK_LMENU);

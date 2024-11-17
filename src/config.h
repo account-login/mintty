@@ -102,6 +102,7 @@ typedef struct {
   int ctrl_alt_delay_altgr;
   bool key_alpha_mode;
   char old_altgr_detection;
+  bool no_altgr;
   int old_modify_keys;
   int format_other_keys;
   bool auto_repeat;
